@@ -4,7 +4,9 @@ import discord
 from discord import ui, app_commands
 from discord.ext import tasks, commands
 from dotenv import load_dotenv
+from typing import Optional
 import os
+import json
 
 station_data = {
     "191st Street": [
@@ -68,6 +70,9 @@ station_data = {
         "A famous mural by pop artist Roy Lichtenstein has decorated its corridors since 1994."
     ]
 }
+# initialize collections from json file
+with open('collections.json', 'r') as f:
+    userdata = json.load(f)
 
 load_dotenv()
 
@@ -78,6 +83,20 @@ server = discord.Object(id=1081625448385085440)
 current_station = None
 hints_revealed = 0
 
+def add_station(userid, station):
+    try:
+        userdata[userid].append(station)
+        userdata[userid] = list(set(userdata[userid]))
+    except:
+        userdata[userid] = [station]
+    update_json()
+    return
+
+def update_json():
+    with open('collections.json', 'w') as f:
+        json.dump(userdata, f, indent=4)
+    return
+
 bot = commands.Bot(command_prefix="m!", intents=intents)
 
 @tasks.loop(minutes=5)
@@ -86,7 +105,7 @@ async def send_interval_message():
     channel = bot.get_channel(1477473312291553453)
     current_station = random.choice(list(station_data.keys()))
     station_image = discord.File(f"images/{current_station}.png")
-    await channel.send("A wild metro station appeared. Use </guess:1477481130507763754> to try and add it to your collection!", file=station_image)
+    await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
     print(f"Spawned {current_station}!")
 
 async def station_autocomplete(interaction: discord.Interaction, current: str):
@@ -117,11 +136,42 @@ async def guess(interaction: discord.Interaction, station_name: str):
         if station_name == current_station:
             caught = current_station
             current_station = None
+            add_station(str(interaction.user.id), caught)
             await interaction.response.send_message(f"{interaction.user.mention} guessed correctly and collected **{caught}**!")
         else:
             await interaction.response.send_message(f"{interaction.user.mention} Wrong station!")
     else:
         await interaction.response.send_message("Doesn't seem like there's a station spawned right now. Try again later!", ephemeral=True)
-        
+
+@bot.tree.command(name="collection", description="View the stations a player has collected.")
+async def collection(interaction: discord.Interaction, user: Optional[discord.Member] = None):
+    tuser = user or interaction.user
+    try:
+        user_collection = userdata[str(tuser.id)]
+        await interaction.response.send_message(user_collection)
+    except:
+        if user == interaction.user:
+            await interaction.response.send_message("Doesn't seem like this you have a collection yet. Try guessing a few stations first, and then come back.", ephemeral=True)
+        else:
+            await interaction.response.send_message("Doesn't seem like this user has a collection yet. They should try guessing a few stations!", ephemeral=True)
+
+@bot.tree.command(name="spawn", description="Manually spawn a station.")
+async def spawn(interaction: discord.Interaction):
+    global current_station
+    if interaction.user.id != 700061928243986512:
+        await interaction.response.send_message("Missing permissions to use this command.", ephemeral=True)
+        return
+    channel = bot.get_channel(1477473312291553453)
+    current_station = random.choice(list(station_data.keys()))
+    station_image = discord.File(f"images/{current_station}.png")
+    await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
+    await interaction.response.send_message("Spawned a station.", ephemeral=True)
+
+@bot.tree.command(name="user_data", description="Debug command to display current user data.")
+async def user_data(interaction: discord.Interaction):
+    if interaction.user.id != 700061928243986512:
+        await interaction.response.send_message("Missing permissions to use this command.", ephemeral=True)
+        return
+    await interaction.response.send_message(userdata, ephemeral=True)
 
 bot.run(TOKEN)
