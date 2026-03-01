@@ -1,3 +1,5 @@
+import time
+import random
 import discord
 from discord import ui
 from discord.ext import tasks, commands
@@ -77,11 +79,13 @@ current_station = None
 
 bot = commands.Bot(command_prefix="m!", intents=intents)
 
-@tasks.loop(minutes=1)
+@tasks.loop(minutes=5)
 async def send_interval_message():
+    global current_station
     channel = bot.get_channel(1477473312291553453)
-    await channel.send("A wild metro station appeared. Metro station tentative")
-    print("Spawned!")
+    current_station = random.choice(list(station_data.keys()))
+    await channel.send("A wild metro station appeared.")
+    print(f"Spawned {current_station}!")
 
 @bot.event
 async def on_ready():
@@ -98,11 +102,14 @@ async def ping(interaction: discord.Interaction):
 
 @bot.tree.command(name="guess", description="Take a stab at capturing a spawned station.")
 async def guess(interaction: discord.Interaction, station_name: str):
+    global current_station
     if current_station:
         if station_name == current_station:
-            pass
+            caught = current_station
+            current_station = None
+            await interaction.response.send_message(f"{interaction.user.mention} guessed correctly and collected **{caught}**!")
         else:
-            pass
+            await interaction.response.send_message(f"{interaction.user.mention} Wrong station!")
     else:
         await interaction.response.send_message("Doesn't seem like there's a station spawned right now. Try again later!", ephemeral=True)
         
