@@ -87,11 +87,11 @@ hints_revealed = 0
 async def station_autocomplete(interaction: discord.Interaction, current: str):
     return [
         app_commands.Choice(name=station, value=station)
-        for station in list(station_data.keys())
-        if current.lower() in station.lower()
+        for station in list(station_data.keys()) if current.lower() in station.lower()
     ]
 
 async def handle_hints(message):
+    global current_station
     start_time = time.perf_counter()
     print(f"Spawned {current_station}!")
     seed = random.randint(0, 1)
@@ -109,6 +109,9 @@ async def handle_hints(message):
             hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n**💡 Hint 1**: {hint1}\n**🔎 Hint 2**: {hint2}"
             await message.edit(content=hint_msg)
         await asyncio.sleep(1)
+    if current_station:
+        await message.edit(content=f"No one collected **{current_station}**, so the station left.")
+        current_station = None
     return
 
 def add_station(userid, station):
@@ -144,10 +147,7 @@ async def send_interval_message():
     current_station = random.choice(list(station_data.keys()))
     station_image = discord.File(f"images/{current_station}.png")
     message = await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
-    await handle_hints(message)
-    if current_station:
-        await message.edit(content=f"No one collected **{current_station}**, so the station left.")
-        current_station = None
+    asyncio.create_task(handle_hints(message))
 
 @bot.event
 async def on_ready():
