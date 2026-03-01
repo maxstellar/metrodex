@@ -1,7 +1,7 @@
 import time
 import random
 import discord
-from discord import ui
+from discord import ui, app_commands
 from discord.ext import tasks, commands
 from dotenv import load_dotenv
 import os
@@ -87,6 +87,13 @@ async def send_interval_message():
     await channel.send("A wild metro station appeared.")
     print(f"Spawned {current_station}!")
 
+async def station_autocomplete(interaction: discord.Interaction, current: str):
+    return [
+        app_commands.Choice(name=station, value=station)
+        for station in list(station_data.keys())
+        if current.lower() in station.lower()
+    ]
+
 @bot.event
 async def on_ready():
     bot.tree.copy_global_to(guild=server)
@@ -101,6 +108,7 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f'Pong! **{latency_ms}ms**')
 
 @bot.tree.command(name="guess", description="Take a stab at capturing a spawned station.")
+@app_commands.autocomplete(station_name=station_autocomplete)
 async def guess(interaction: discord.Interaction, station_name: str):
     global current_station
     if current_station:
