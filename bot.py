@@ -1,6 +1,7 @@
 import time
 import random
 import discord
+import asyncio
 from discord import ui, app_commands
 from discord.ext import tasks, commands
 from dotenv import load_dotenv
@@ -83,6 +84,33 @@ server = discord.Object(id=1081625448385085440)
 current_station = None
 hints_revealed = 0
 
+async def station_autocomplete(interaction: discord.Interaction, current: str):
+    return [
+        app_commands.Choice(name=station, value=station)
+        for station in list(station_data.keys())
+        if current.lower() in station.lower()
+    ]
+
+async def handle_hints(message):
+    start_time = time.perf_counter()
+    print(f"Spawned {current_station}!")
+    seed = random.randint(0, 1)
+    hint1 = station_data[current_station][seed]
+    hint2 = station_data[current_station][1 - seed]
+    trigger1 = False
+    trigger2 = False
+    while time.perf_counter() - start_time < 121 and current_station != None:
+        if time.perf_counter() - start_time > 30 and not trigger1:
+            trigger1 = True
+            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n**💡 Hint 1**: {hint1}"
+            await message.edit(content=hint_msg)
+        if time.perf_counter() - start_time > 60 and not trigger2:
+            trigger2 = True
+            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n**💡 Hint 1**: {hint1}\n**🔎 Hint 2**: {hint2}"
+            await message.edit(content=hint_msg)
+        await asyncio.sleep(1)
+    return
+
 def add_station(userid, station):
     try:
         userdata[userid].append(station)
@@ -97,6 +125,16 @@ def update_json():
         json.dump(userdata, f, indent=4)
     return
 
+def generate_collection_string(collection):
+    lines = []
+    for station in station_data.keys():
+        if station in collection:
+            status = "✅"
+        else:
+            status = "❌"
+        lines.append(f"**{station}**: {status}")
+    return "\n".join(lines)
+
 bot = commands.Bot(command_prefix="m!", intents=intents)
 
 @tasks.loop(minutes=5)
@@ -106,30 +144,10 @@ async def send_interval_message():
     current_station = random.choice(list(station_data.keys()))
     station_image = discord.File(f"images/{current_station}.png")
     message = await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
-    start_time = time.perf_counter()
-    print(f"Spawned {current_station}!")
-    seed = random.randint(0, 1)
-    hint1 = station_data[current_station][seed]
-    hint2 = station_data[current_station][1 - seed]
-    trigger1 = False
-    trigger2 = False
-    while start_time < 121 and current_station != None:
-        if time.perf_counter() - start_time > 30 and not trigger1:
-            trigger1 = True
-            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n💡 Hint 1: {hint1}"
-            await message.edit(content=hint_msg)
-        if time.perf_counter - start_time > 60 and not trigger2:
-            trigger2 = True
-            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n💡 Hint 1: {hint1}\n🔎 Hint 2: {hint2}"
-            await message.edit(content=hint_msg)
-    current_station = None
-
-async def station_autocomplete(interaction: discord.Interaction, current: str):
-    return [
-        app_commands.Choice(name=station, value=station)
-        for station in list(station_data.keys())
-        if current.lower() in station.lower()
-    ]
+    await handle_hints(message)
+    if current_station:
+        await message.edit(content=f"No one collected **{current_station}**, so the station left.")
+        current_station = None
 
 @bot.event
 async def on_ready():
@@ -164,24 +182,16 @@ async def collection(interaction: discord.Interaction, user: Optional[discord.Me
     tuser = user or interaction.user
     try:
         user_collection = userdata[str(tuser.id)]
-        await interaction.response.send_message(user_collection)
+        embed = discord.Embed(
+            title=f"{tuser.name}'s collection",
+            description=f"{generate_collection_string(user_collection)}"
+        )
+        await interaction.response.send_message(embed=embed)
     except:
         if user == interaction.user:
             await interaction.response.send_message("Doesn't seem like this you have a collection yet. Try guessing a few stations first, and then come back.", ephemeral=True)
         else:
             await interaction.response.send_message("Doesn't seem like this user has a collection yet. They should try guessing a few stations!", ephemeral=True)
-
-@bot.tree.command(name="spawn", description="Manually spawn a station.")
-async def spawn(interaction: discord.Interaction):
-    global current_station
-    if interaction.user.id != 700061928243986512:
-        await interaction.response.send_message("Missing permissions to use this command.", ephemeral=True)
-        return
-    channel = bot.get_channel(1477473312291553453)
-    current_station = random.choice(list(station_data.keys()))
-    station_image = discord.File(f"images/{current_station}.png")
-    await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
-    await interaction.response.send_message("Spawned a station.", ephemeral=True)
 
 @bot.tree.command(name="user_data", description="Debug command to display current user data.")
 async def user_data(interaction: discord.Interaction):
