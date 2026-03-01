@@ -105,8 +105,24 @@ async def send_interval_message():
     channel = bot.get_channel(1477473312291553453)
     current_station = random.choice(list(station_data.keys()))
     station_image = discord.File(f"images/{current_station}.png")
-    await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
+    message = await channel.send("A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.", file=station_image)
+    start_time = time.perf_counter()
     print(f"Spawned {current_station}!")
+    seed = random.randint(0, 1)
+    hint1 = station_data[current_station][seed]
+    hint2 = station_data[current_station][1 - seed]
+    trigger1 = False
+    trigger2 = False
+    while start_time < 121 and current_station != None:
+        if time.perf_counter() - start_time > 30 and not trigger1:
+            trigger1 = True
+            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n💡 Hint 1: {hint1}"
+            await message.edit(content=hint_msg)
+        if time.perf_counter - start_time > 60 and not trigger2:
+            trigger2 = True
+            hint_msg = f"A wild metro station appeared! Use </guess:1477481130507763754> to try and add it to your collection.\n💡 Hint 1: {hint1}\n🔎 Hint 2: {hint2}"
+            await message.edit(content=hint_msg)
+    current_station = None
 
 async def station_autocomplete(interaction: discord.Interaction, current: str):
     return [
