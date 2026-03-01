@@ -76,6 +76,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 server = discord.Object(id=1081625448385085440)
 current_station = None
+hints_revealed = 0
 
 bot = commands.Bot(command_prefix="m!", intents=intents)
 
@@ -84,7 +85,8 @@ async def send_interval_message():
     global current_station
     channel = bot.get_channel(1477473312291553453)
     current_station = random.choice(list(station_data.keys()))
-    await channel.send("A wild metro station appeared.")
+    station_image = discord.File(f"images/{current_station}.png")
+    await channel.send("A wild metro station appeared. Use </guess:1477481130507763754> to try and add it to your collection!", file=station_image)
     print(f"Spawned {current_station}!")
 
 async def station_autocomplete(interaction: discord.Interaction, current: str):
